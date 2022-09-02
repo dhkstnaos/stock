@@ -1,6 +1,7 @@
 package com.example.stock.service;
 
 import com.example.stock.domain.Stock;
+import com.example.stock.facade.NamedLockStockFacade;
 import com.example.stock.facade.OptimisticLockStockFacade;
 import com.example.stock.repository.StockRepository;
 import java.util.concurrent.CountDownLatch;
@@ -25,6 +26,8 @@ class StockServiceTest {
   @Autowired
   private OptimisticLockStockFacade optimisticLockStockFacade;
 
+  @Autowired
+  private NamedLockStockFacade namedLockStockFacade;
   @Autowired
   private StockRepository stockRepository;
 
@@ -96,6 +99,25 @@ class StockServiceTest {
       executorService.submit(() -> {
         try {
           pessimisticRockStockService.decrease(1L, 1L);
+        } finally {
+          countDownLatch.countDown();
+        }
+      });
+    }
+    countDownLatch.await();
+    Stock stock = stockRepository.findById(1L).orElseThrow();
+    Assertions.assertThat(stock.getQuantity()).isEqualTo(0L);
+  }
+
+  @Test
+  public void 네임드_락을_통한_동시에_100개_요청() throws InterruptedException {
+    int threadCount = 100;
+    ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
+    CountDownLatch countDownLatch = new CountDownLatch(threadCount);
+    for (int i = 0; i < threadCount; i++) {
+      executorService.submit(() -> {
+        try {
+          namedLockStockFacade.decrease(1L, 1L);
         } finally {
           countDownLatch.countDown();
         }
